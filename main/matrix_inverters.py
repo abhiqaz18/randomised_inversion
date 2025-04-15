@@ -15,6 +15,7 @@ def Gower_Richtarik_2016_1(A: np.matrix) -> np.matrix:
     Parameters: distribution D and positive definite matrix W with the same dimensions as A.
     """
     n = A.shape[0]
+    W = np.matrix(np.eye(n))
     I = np.matrix(np.eye(n))
     m = n // 4
     num_iters = 200
@@ -22,8 +23,8 @@ def Gower_Richtarik_2016_1(A: np.matrix) -> np.matrix:
     A_inv = np.matrix(std_norm.rvs(size=(n, n)))
     for _ in range(num_iters):
         S = np.matrix(std_norm.rvs(size=(n, m)))
-        L = S * np.matrix(np.linalg.inv(S.T * A * A.T * S)) * S.T
-        A_inv += A.T * L * (I - A * A_inv)
+        L = S * np.linalg.inv(S.T * A * W * A.T * S) * S.T
+        A_inv += W * A.T * L * (I - A * A_inv)
 
     return A_inv
 
@@ -35,13 +36,18 @@ def Gower_Richtarik_2016_3(A: np.matrix) -> np.matrix:
     """
     assert A == A.T, 'Please ensure input matrix is symmetric.' # Does this play well with floats?
     n = A.shape[0]
-    I = np.matrix(np.eye())
+    W = np.matrix(np.eye(n))
+    I = np.matrix(np.eye(n))
     m = n // 4
     num_iters = 200
 
     A_inv = np.matrix(std_norm.rvs(size=(n, n)))
     A_inv = (A_inv + A_inv.T) / 2
     for _ in range(num_iters):
-        S = 
+        S = np.matrix(std_norm.rvs(size=(n, m)))
+        L = S * np.linalg.inv(S.T * A * W * A.T * S) * S.T
+        T = L * A * W
+        M = A_inv * A - I
+        A_inv += T.T * (A * A_inv * A - A) * T - M * T - (M * T).T
 
-    return 0
+    return A_inv
