@@ -18,7 +18,7 @@ def inv_sqrt(A: np.matrix):
     l = np.real(l)
     return np.matrix(l @ eig @ l.T)
 
-def Gower_Richtarik_2016_1(A: np.matrix, max_iters=10000, tol=1e-2, sketch_frac=None) -> np.matrix:
+def Gower_Richtarik_2016_1(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.matrix:
     """
     Algorithm 1 from Gower and Richtárik (2016).
     Called Stochastic Iterative Matrix Inversion (SIMI) – nonsymmetric row variant.
@@ -26,85 +26,109 @@ def Gower_Richtarik_2016_1(A: np.matrix, max_iters=10000, tol=1e-2, sketch_frac=
     """
     n = A.shape[0]
     m = int(n ** 0.5) if sketch_frac == None else int(n * sketch_frac)
+    
     tol *= n
+    tol_check_period = 1 / tol_check_freq if tol_check_freq != 0 else 0
 
     W = np.matrix(np.eye(n))
     I = np.matrix(np.eye(n))
 
     A_inv = np.matrix(std_norm.rvs(size=(n, n)))
-    for num_iters in range(max_iters):
+    for num_iter in range(max_iters):
         S = np.matrix(std_norm.rvs(size=(n, m)))
         L = S * np.linalg.inv(S.T * A * W * A.T * S) * S.T
         M = I - A * A_inv
         A_inv += W * A.T * L * M
 
-        if np.linalg.matrix_norm(M) < tol: # is this really independent of n?
-            break
+        if tol_check_period and (num_iter % tol_check_period == 0):
+            if np.linalg.matrix_norm(M) < tol:
+                break
     
-    if num_iters == max_iters - 1:
+    if num_iter == max_iters - 1:
         print(f'Warning: Max. iterations ({max_iters}) reached without convergence.')
 
     return A_inv
 
-def Gower_Richtarik_2016_3(A: np.matrix, max_iters=10000, tol=1e-2, sketch_frac=None) -> np.matrix:
+def Gower_Richtarik_2016_3(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.matrix:
     """
     Algorithm 3 from Gower and Richtárik (2016).
     Called Stochastic Iterative Matrix Inversion (SIMI) - symmetric variant.
     Input matrix must be symmetric.
     Parameters: distribution D and positive definite matrix W with the same dimensions as A.
     """
-    assert A == A.T, 'Please ensure input matrix is symmetric.' # Does this play well with floats?
+    assert np.allclose(A, A.T), 'Please ensure input matrix is symmetric.'
 
     n = A.shape[0]
     m = int(n ** 0.5) if sketch_frac == None else int(n * sketch_frac)
+    
     tol *= n
+    tol_check_period = 1 / tol_check_freq if tol_check_freq != 0 else 0
 
     W = np.matrix(np.eye(n))
     I = np.matrix(np.eye(n))
 
     A_inv = np.matrix(std_norm.rvs(size=(n, n)))
     A_inv = (A_inv + A_inv.T) / 2
-    for num_iters in range(num_iters):
+    for num_iter in range(max_iters):
         S = np.matrix(std_norm.rvs(size=(n, m)))
         L = S * np.linalg.inv(S.T * A * W * A.T * S) * S.T
         T = L * A * W
         M = A_inv * A - I
         A_inv += T.T * (A * A_inv * A - A) * T - M * T - (M * T).T
 
-        if np.linalg.matrix_norm(M) < tol:
-            break
+        if tol_check_period and (num_iter % tol_check_period == 0):
+            if np.linalg.matrix_norm(M) < tol:
+                break
     
-    if num_iters == max_iters - 1:
+    if num_iter == max_iters - 1:
         print(f'Warning: Max. iterations ({max_iters}) reached without convergence.')
 
     return A_inv
 
-def Gower_Richtarik_2016_4(A: np.matrix, max_iters=1000, tol=1e-2, sketch_frac=None) -> np.matrix:
+def Gower_Richtarik_2016_4(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.matrix:
     """
     Algorithm 4 from Gower and Richtárik (2016).
     Called Adaptive Randomised BFGS (AdaRBFGS).
     Input matrix must be symmetric positive definite.
     Parameters: distribution D.
     """
-    #assert A == A.T, 'Please ensure input matrix is symmetric.'
+    assert np.allclose(A, A.T), 'Please ensure input matrix is symmetric.'
 
     n = A.shape[0]
     m = int(n ** 0.5) if sketch_frac == None else int(n * sketch_frac)
+    
     tol *= n
+    tol_check_period = 1 / tol_check_freq if tol_check_freq != 0 else 0
 
     I = np.matrix(np.eye(n))
     L = np.matrix(np.eye(n))
 
-    for num_iters in range(max_iters):
-        #if np.linalg.matrix_norm(L * L.T * A - I) < tol:
-        #    break
+    for num_iter in range(max_iters):
+        if tol_check_period and (num_iter % tol_check_period == 0):
+            print(np.linalg.matrix_norm(L * L.T * A - I))
+            #if np.linalg.matrix_norm(L * L.T * A - I) < tol:
+            #    break
 
-        S_tilde = np.matrix(std_norm.rvs(size=(n, m)))
+        S_tilde = np.matrix(std_norm.rvs(size=(n, m), random_state=num_iter))
         S = L * S_tilde
         R = inv_sqrt(S_tilde.T * A * S_tilde)
-        L += S * R * (inv_sqrt(S_tilde.T * S_tilde) * S_tilde.T - R * S.T * A * L)
+        L += S * R * (inv_sqrt(S_tilde.T * S_tilde) * S_tilde.T - R.T * S.T * A * L)
     
-    if num_iters == max_iters - 1:
+    if num_iter == max_iters - 1:
         print(f'Warning: Max. iterations ({max_iters}) reached without convergence.')
     
-    return L * L.T
+    out = L * L.T
+    print(out[0, 0])
+    return out
+
+if __name__ == '__main__':
+    n = 1000
+    import numpy as np
+    A = np.matrix(std_norm.rvs((n, n), random_state=42))
+    ATA = A.T * A
+    assert (np.linalg.eigvalsh(ATA) > 0).all()
+
+    print(np.linalg.matrix_norm(ATA * np.matrix(np.linalg.inv(ATA)) - np.eye(n)))
+    #print(np.linalg.matrix_norm(ATA * Gower_Richtarik_2016_3(ATA, max_iters=100,tol=0.1) - np.eye(n)))
+    #print(np.linalg.matrix_norm(ATA * Gower_Richtarik_2016_3(ATA, max_iters=100, tol=0.1) - np.eye(n)))
+    print(np.linalg.matrix_norm(ATA * Gower_Richtarik_2016_4(ATA, max_iters=1000, tol=0.1, tol_check_freq=10/1000) - np.eye(n)))
