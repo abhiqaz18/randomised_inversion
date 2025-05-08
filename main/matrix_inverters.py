@@ -105,9 +105,8 @@ def Gower_Richtarik_2016_4(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_fr
 
     for num_iter in range(max_iters):
         if tol_check_period and (num_iter % tol_check_period == 0):
-            print(np.linalg.matrix_norm(L * L.T * A - I))
-            #if np.linalg.matrix_norm(L * L.T * A - I) < tol:
-            #    break
+            if np.linalg.matrix_norm(L * L.T * A - I) < tol:
+                break
 
         S_tilde = np.matrix(std_norm.rvs(size=(n, m), random_state=num_iter))
         S = L * S_tilde
@@ -117,18 +116,4 @@ def Gower_Richtarik_2016_4(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_fr
     if num_iter == max_iters - 1:
         print(f'Warning: Max. iterations ({max_iters}) reached without convergence.')
     
-    out = L * L.T
-    print(out[0, 0])
-    return out
-
-if __name__ == '__main__':
-    n = 1000
-    import numpy as np
-    A = np.matrix(std_norm.rvs((n, n), random_state=42))
-    ATA = A.T * A
-    assert (np.linalg.eigvalsh(ATA) > 0).all()
-
-    print(np.linalg.matrix_norm(ATA * np.matrix(np.linalg.inv(ATA)) - np.eye(n)))
-    #print(np.linalg.matrix_norm(ATA * Gower_Richtarik_2016_3(ATA, max_iters=100,tol=0.1) - np.eye(n)))
-    #print(np.linalg.matrix_norm(ATA * Gower_Richtarik_2016_3(ATA, max_iters=100, tol=0.1) - np.eye(n)))
-    print(np.linalg.matrix_norm(ATA * Gower_Richtarik_2016_4(ATA, max_iters=1000, tol=0.1, tol_check_freq=10/1000) - np.eye(n)))
+    return L * L.T
