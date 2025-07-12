@@ -9,16 +9,16 @@ std_norm = sp.stats.norm(0, 1)
 # 3. Allow arbitrary distribution to be set.
 # 4. Consider preloading sampled matrices.
 
-def inv_sqrt(A: np.matrix):
+def inv_sqrt(A: np.ndarray) -> np.ndarray:
     """
     Given a s.p.d. matrix A, returns the unique s.p.d. matrix X such that X^2 = A^-1.
     """
     eig, l = sp.linalg.eigh(A)
     eig = np.diag(1 / np.sqrt(np.real(eig)))
     l = np.real(l)
-    return np.matrix(l @ eig @ l.T)
+    return l @ eig @ l.T
 
-def Gower_Richtarik_2016_1(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.matrix:
+def Gower_Richtarik_2016_1(A: np.ndarray, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.ndarray:
     """
     Algorithm 1 from Gower and Richtárik (2016).
     Called Stochastic Iterative Matrix Inversion (SIMI) – nonsymmetric row variant.
@@ -30,15 +30,15 @@ def Gower_Richtarik_2016_1(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_fr
     tol *= n
     tol_check_period = 1 / tol_check_freq if tol_check_freq != 0 else 0
 
-    W = np.matrix(np.eye(n))
-    I = np.matrix(np.eye(n))
+    W = np.eye(n)
+    I = np.eye(n)
 
-    A_inv = np.matrix(std_norm.rvs(size=(n, n)))
+    A_inv = std_norm.rvs(size=(n, n))
     for num_iter in range(max_iters):
-        S = np.matrix(std_norm.rvs(size=(n, m)))
-        L = S * np.linalg.inv(S.T * A * W * A.T * S) * S.T
-        M = I - A * A_inv
-        A_inv += W * A.T * L * M
+        S = std_norm.rvs(size=(n, m))
+        L = S @ np.linalg.inv(S.T @ A @ W @ A.T @ S) @ S.T
+        M = I - A @ A_inv
+        A_inv += W @ A.T @ L @ M
 
         if tol_check_period and (num_iter % tol_check_period == 0):
             if np.linalg.matrix_norm(M) < tol:
@@ -49,7 +49,7 @@ def Gower_Richtarik_2016_1(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_fr
 
     return A_inv
 
-def Gower_Richtarik_2016_3(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.matrix:
+def Gower_Richtarik_2016_3(A: np.ndarray, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.ndarray:
     """
     Algorithm 3 from Gower and Richtárik (2016).
     Called Stochastic Iterative Matrix Inversion (SIMI) - symmetric variant.
@@ -64,17 +64,17 @@ def Gower_Richtarik_2016_3(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_fr
     tol *= n
     tol_check_period = 1 / tol_check_freq if tol_check_freq != 0 else 0
 
-    W = np.matrix(np.eye(n))
-    I = np.matrix(np.eye(n))
+    W = np.eye(n)
+    I = np.eye(n)
 
-    A_inv = np.matrix(std_norm.rvs(size=(n, n)))
+    A_inv = std_norm.rvs(size=(n, n))
     A_inv = (A_inv + A_inv.T) / 2
     for num_iter in range(max_iters):
-        S = np.matrix(std_norm.rvs(size=(n, m)))
-        L = S * np.linalg.inv(S.T * A * W * A.T * S) * S.T
-        T = L * A * W
-        M = A_inv * A - I
-        A_inv += T.T * (A * A_inv * A - A) * T - M * T - (M * T).T
+        S = std_norm.rvs(size=(n, m))
+        L = S @ np.linalg.inv(S.T @ A @ W @ A.T @ S) @ S.T
+        T = L @ A @ W
+        M = A_inv @ A - I
+        A_inv += T.T @ (A @ A_inv @ A - A) @ T - M @ T - (M @ T).T
 
         if tol_check_period and (num_iter % tol_check_period == 0):
             if np.linalg.matrix_norm(M) < tol:
@@ -85,7 +85,7 @@ def Gower_Richtarik_2016_3(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_fr
 
     return A_inv
 
-def Gower_Richtarik_2016_4(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.matrix:
+def Gower_Richtarik_2016_4(A: np.ndarray, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.ndarray:
     """
     Algorithm 4 from Gower and Richtárik (2016).
     Called Adaptive Randomised BFGS (AdaRBFGS).
@@ -100,20 +100,20 @@ def Gower_Richtarik_2016_4(A: np.matrix, max_iters=10000, tol=1e-2, tol_check_fr
     tol *= n
     tol_check_period = 1 / tol_check_freq if tol_check_freq != 0 else 0
 
-    I = np.matrix(np.eye(n))
-    L = np.matrix(np.eye(n))
+    I = np.eye(n)
+    L = np.eye(n)
 
     for num_iter in range(max_iters):
         if tol_check_period and (num_iter % tol_check_period == 0):
-            if np.linalg.matrix_norm(L * L.T * A - I) < tol:
+            if np.linalg.matrix_norm(L @ L.T @ A - I) < tol:
                 break
 
-        S_tilde = np.matrix(std_norm.rvs(size=(n, m), random_state=num_iter))
-        S = L * S_tilde
-        R = inv_sqrt(S_tilde.T * A * S_tilde)
-        L += S * R * (inv_sqrt(S_tilde.T * S_tilde) * S_tilde.T - R.T * S.T * A * L)
+        S_tilde = std_norm.rvs(size=(n, m), random_state=num_iter)
+        S = L @ S_tilde
+        R = inv_sqrt(S_tilde.T @ A @ S_tilde)
+        L += S @ R @ (inv_sqrt(S_tilde.T @ S_tilde) @ S_tilde.T - R.T @ S.T @ A @ L)
     
     if num_iter == max_iters - 1:
         print(f'Warning: Max. iterations ({max_iters}) reached without convergence.')
     
-    return L * L.T
+    return L @ L.T
