@@ -4,10 +4,12 @@ import scipy as sp
 std_norm = sp.stats.norm(0, 1)
 
 # TO-DO
+# 0. Proper stopping criterion.
 # 1. Clean up imports.
-# 2. Replace matrices with ndarrays.
-# 3. Allow arbitrary distribution to be set.
-# 4. Consider preloading sampled matrices.
+# 2. Bracketing @ for speed.
+# 3. Use sqrt then solve instead of inv_sqrt then multiply.
+# 4. Allow arbitrary distribution to be set.
+# 5. Consider preloading sampled matrices.
 
 def inv_sqrt(A: np.ndarray) -> np.ndarray:
     """
@@ -110,7 +112,7 @@ def Gower_Richtarik_2016_4(A: np.ndarray, max_iters=10000, tol=1e-2, tol_check_f
 
         S_tilde = std_norm.rvs(size=(n, m), random_state=num_iter)
         S = L @ S_tilde
-        R = inv_sqrt(S_tilde.T @ A @ S_tilde)
+        R = inv_sqrt(S.T @ A @ S)
         L += S @ R @ (inv_sqrt(S_tilde.T @ S_tilde) @ S_tilde.T - R.T @ S.T @ A @ L)
     
     if num_iter == max_iters - 1:
