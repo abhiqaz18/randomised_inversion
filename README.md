@@ -20,9 +20,21 @@ There's some beautiful theory in the paper behind the algorithm, I'll include an
 
 ![Algorithm 4 from Gower and Richtarik (2016)](./images/algo4_screenshot.png)
 
-The algorithm as presented in the paper contains a typo (all the mathematics leading up to it is correct, which helped spot the typo). Step 7 $$R_k = (\tilde{S}^T A \tilde{S})^{-1/2}$$ should read as $$R_k = (S^T A S)^{-1/2}$$ instead. 
+The algorithm as presented in the paper contains a typo (all the mathematics leading up to it is correct, which helped spot the typo). Step 7 
+```math
+R_k = (\tilde{S}^T A \tilde{S})^{-1/2}
+```
+should read as 
+```math
+R_k = (S^T A S)^{-1/2}
+```
+instead. 
 
-The difference is validated in the plots below (note the y-axes are different between the plots). Error is defined as $$||A \cdot \widehat{A^{-1}} - I||_F$$ where $||\cdot||_F$ is the Frobenius norm, or the induced 2-norm.
+The difference is validated in the plots below (note the y-axes are different between the plots). Error is defined as 
+```math
+||A \cdot \widehat{A^{-1}} - I||_F
+```
+where $||\cdot||_F$ is the Frobenius norm, or the induced 2-norm.
 
 ![original algo](./images/original_algo.png)
 ![corrected algo](./images/corrected_algo.png)
