@@ -4,12 +4,12 @@ import scipy as sp
 std_norm = sp.stats.norm(0, 1)
 
 # TO-DO
-# 0. Proper stopping criterion.
 # 1. Clean up imports.
 # 2. Bracketing @ for speed.
 # 3. Use sqrt then solve instead of inv_sqrt then multiply.
 # 4. Allow arbitrary distribution to be set.
-# 5. Consider preloading sampled matrices.
+# 5. Consider batching random matrix generation.
+# 6. Fix DRY violations - a general matrix inverter should accept a preconditioner, an iterator, and an output processor (e.g. if your iterates are L, return L @ L.T)
 
 def inv_sqrt(A: np.ndarray) -> np.ndarray:
     """
@@ -20,74 +20,7 @@ def inv_sqrt(A: np.ndarray) -> np.ndarray:
     l = np.real(l)
     return l @ eig @ l.T
 
-def Gower_Richtarik_2016_1(A: np.ndarray, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.ndarray:
-    """
-    Algorithm 1 from Gower and Richtárik (2016).
-    Called Stochastic Iterative Matrix Inversion (SIMI) – nonsymmetric row variant.
-    Parameters: distribution D and positive definite matrix W with the same dimensions as A.
-    """
-    n = A.shape[0]
-    m = int(n ** 0.5) if sketch_frac == None else int(n * sketch_frac)
-    
-    tol *= n
-    tol_check_period = 1 / tol_check_freq if tol_check_freq != 0 else 0
-
-    W = np.eye(n)
-    I = np.eye(n)
-
-    A_inv = std_norm.rvs(size=(n, n))
-    for num_iter in range(max_iters):
-        S = std_norm.rvs(size=(n, m))
-        L = S @ np.linalg.inv(S.T @ A @ W @ A.T @ S) @ S.T
-        M = I - A @ A_inv
-        A_inv += W @ A.T @ L @ M
-
-        if tol_check_period and (num_iter % tol_check_period == 0):
-            if np.linalg.matrix_norm(M) < tol:
-                break
-    
-    if num_iter == max_iters - 1:
-        print(f'Warning: Max. iterations ({max_iters}) reached without convergence.')
-
-    return A_inv
-
-def Gower_Richtarik_2016_3(A: np.ndarray, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.ndarray:
-    """
-    Algorithm 3 from Gower and Richtárik (2016).
-    Called Stochastic Iterative Matrix Inversion (SIMI) - symmetric variant.
-    Input matrix must be symmetric.
-    Parameters: distribution D and positive definite matrix W with the same dimensions as A.
-    """
-    assert np.allclose(A, A.T), 'Please ensure input matrix is symmetric.'
-
-    n = A.shape[0]
-    m = int(n ** 0.5) if sketch_frac == None else int(n * sketch_frac)
-    
-    tol *= n
-    tol_check_period = 1 / tol_check_freq if tol_check_freq != 0 else 0
-
-    W = np.eye(n)
-    I = np.eye(n)
-
-    A_inv = std_norm.rvs(size=(n, n))
-    A_inv = (A_inv + A_inv.T) / 2
-    for num_iter in range(max_iters):
-        S = std_norm.rvs(size=(n, m))
-        L = S @ np.linalg.inv(S.T @ A @ W @ A.T @ S) @ S.T
-        T = L @ A @ W
-        M = A_inv @ A - I
-        A_inv += T.T @ (A @ A_inv @ A - A) @ T - M @ T - (M @ T).T
-
-        if tol_check_period and (num_iter % tol_check_period == 0):
-            if np.linalg.matrix_norm(M) < tol:
-                break
-    
-    if num_iter == max_iters - 1:
-        print(f'Warning: Max. iterations ({max_iters}) reached without convergence.')
-
-    return A_inv
-
-def Gower_Richtarik_2016_4(A: np.ndarray, max_iters=10000, tol=1e-2, tol_check_freq=0, sketch_frac=None) -> np.ndarray:
+def Gower_Richtarik_2016_4(A: np.ndarray, max_iters=10000, tol=1e-2, tol_check_period=1000, sketch_frac=None, precondition=True) -> np.ndarray:
     """
     Algorithm 4 from Gower and Richtárik (2016).
     Called Adaptive Randomised BFGS (AdaRBFGS).
@@ -100,10 +33,50 @@ def Gower_Richtarik_2016_4(A: np.ndarray, max_iters=10000, tol=1e-2, tol_check_f
     m = int(n ** 0.5) if sketch_frac == None else int(n * sketch_frac)
     
     tol *= n
-    tol_check_period = 1 / tol_check_freq if tol_check_freq != 0 else 0
 
     I = np.eye(n)
-    L = np.eye(n)
+
+    if precondition:
+        # scale identity by trace(A) / trace(A^2)
+        L = sp.linalg.cholesky(I * np.trace(A) / np.trace(A @ A), lower=True)
+    else:
+        L = np.eye(n)
+
+    for num_iter in range(max_iters):
+        if tol_check_period and (num_iter % tol_check_period == 0):
+            if np.linalg.matrix_norm(L @ L.T @ A - I) < tol:
+                break
+
+        S_tilde = std_norm.rvs(size=(n, m), random_state=num_iter)
+        S = L @ S_tilde
+        R = inv_sqrt(S_tilde.T @ A @ S_tilde)
+        L += S @ R @ (inv_sqrt(S_tilde.T @ S_tilde) @ S_tilde.T - R.T @ S.T @ A @ L)
+    
+    if num_iter == max_iters - 1:
+        print(f'Warning: Max. iterations ({max_iters}) reached without convergence.')
+    
+    return L @ L.T
+
+def Gower_Richtarik_2016_4_corrected(A: np.ndarray, max_iters=10000, tol=1e-2, tol_check_period=1000, sketch_frac=None, precondition=True) -> np.ndarray:
+    """
+    Corrected version of algorithm 4 from Gower and Richtárik (2016).
+    Input matrix must be symmetric positive definite.
+    Parameters: distribution D.
+    """
+    assert np.allclose(A, A.T), 'Please ensure input matrix is symmetric.'
+
+    n = A.shape[0]
+    m = int(n ** 0.5) if sketch_frac == None else int(n * sketch_frac)
+    
+    tol *= n
+
+    I = np.eye(n)
+
+    if precondition:
+        # scale identity by trace(A) / trace(A^2)
+        L = sp.linalg.cholesky(I * np.trace(A) / np.trace(A @ A), lower=True)
+    else:
+        L = np.eye(n)
 
     for num_iter in range(max_iters):
         if tol_check_period and (num_iter % tol_check_period == 0):
